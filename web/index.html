@@ -50,7 +50,7 @@ button{border:0;border-radius:9px;background:#c4ad7a;color:#10151c;padding:12px 
 </main>
 <script>
 const $=id=>document.getElementById(id);
-let gateway="", token="";
+let gateway="", token="";\n$("gateway").value=location.origin;
 function selected(){return [...document.querySelectorAll('.checks input:checked')].map(x=>x.value)}
 function auth(){return {"authorization":"Bearer "+token,"content-type":"application/json"}}
 function setStatus(id,enabled,configured){$("dot-"+id).classList.toggle("ok",enabled&&configured);$("status-"+id).textContent=enabled?(configured?"Enabled · credential configured":"Enabled · credential missing"):"Not enabled"}
