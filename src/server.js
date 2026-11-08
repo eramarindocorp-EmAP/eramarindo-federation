@@ -1,6 +1,7 @@
 import http from "node:http";
 import { randomUUID } from "node:crypto";
 import { callProvider } from "./providers.js";
+import { orchestrate } from "./orchestrator.js";
 import { createRateLimiter, isAuthorized, parseEnabledProviders } from "./security.js";
 
 const env = process.env;
@@ -45,6 +46,12 @@ function validMessages(messages) {
       (typeof item.content === "string" || Array.isArray(item.content)));
 }
 
+function validModels(models) {
+  return models === undefined || (models && typeof models === "object" && !Array.isArray(models) &&
+    Object.entries(models).every(([provider, model]) =>
+      ["openai", "deepseek", "gemini"].includes(provider) && typeof model === "string" && model.length <= 160));
+}
+
 export function createServer() {
   return http.createServer(async (request, response) => {
     const requestId = randomUUID();
@@ -66,7 +73,7 @@ export function createServer() {
         data: [...enabledProviders].map((provider) => ({ id: provider, object: "model", owned_by: provider }))
       }, requestId);
     }
-    if (request.method !== "POST" || url.pathname !== "/v1/chat/completions") {
+    if (request.method !== "POST" || !["/v1/chat/completions", "/v1/orchestrate"].includes(url.pathname)) {
       return send(response, 404, { error: { code: "not_found", message: "Route not found" } }, requestId);
     }
 
@@ -79,15 +86,34 @@ export function createServer() {
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return send(response, 400, { error: { code: "invalid_request", message: "Request body must be a JSON object" } }, requestId);
     }
-    const provider = typeof body.provider === "string" ? body.provider.toLowerCase() : "";
-    if (!enabledProviders.has(provider)) {
-      return send(response, 400, { error: { code: "provider_disabled", message: "Provider is not enabled in this environment" } }, requestId);
-    }
     if (!validMessages(body.messages)) {
       return send(response, 400, { error: { code: "invalid_messages", message: "messages must contain 1–100 user/assistant messages" } }, requestId);
     }
-    if (body.model !== undefined && (typeof body.model !== "string" || body.model.length > 160)) {
-      return send(response, 400, { error: { code: "invalid_model", message: "model must be a string of at most 160 characters" } }, requestId);
+    if (!validModels(body.models) || (body.model !== undefined && (typeof body.model !== "string" || body.model.length > 160))) {
+      return send(response, 400, { error: { code: "invalid_model", message: "model identifiers must be strings of at most 160 characters" } }, requestId);
+    }
+
+    if (url.pathname === "/v1/orchestrate") {
+      try {
+        const result = await orchestrate({
+          plan: { ...body.plan, models: body.models },
+          messages: body.messages,
+          system: typeof body.system === "string" ? body.system.slice(0, 20_000) : undefined,
+          enabledProviders,
+          call: callProvider,
+          signal: AbortSignal.timeout(timeoutMs)
+        });
+        console.info(JSON.stringify({ event: "orchestration_request", requestId, mode: result.mode, status: result.status, providers: result.results.map((item) => item.provider), durationMs: Date.now() - startedAt }));
+        return send(response, 200, { id: requestId, object: "fm001.orchestration", ...result }, requestId);
+      } catch (error) {
+        const status = error.status || (error.name === "TimeoutError" || error.name === "AbortError" ? 504 : 502);
+        return send(response, status, { error: { code: "orchestration_error", message: error.message }, request_id: requestId }, requestId);
+      }
+    }
+
+    const provider = typeof body.provider === "string" ? body.provider.toLowerCase() : "";
+    if (!enabledProviders.has(provider)) {
+      return send(response, 400, { error: { code: "provider_disabled", message: "Provider is not enabled in this environment" } }, requestId);
     }
 
     try {
