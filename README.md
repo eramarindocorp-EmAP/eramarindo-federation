@@ -22,7 +22,9 @@ FM-001 is the provider-neutral gateway and orchestration engine for connecting O
 - Bearer-token authentication, request size limits, message validation, request timeout, basic rate limiting, and request IDs.
 - Liveness endpoint, authenticated provider discovery, structured logs without prompt/completion content.
 - Orchestration modes: single provider, parallel comparison, strict-majority exact-text consensus, and ordered fallback.
-- Browser-based Eramarindo AI Command Center served by the FM-001 service.\n- Authenticated provider readiness endpoint; only enabled/configured booleans are exposed, never provider credentials.\n- Deterministic unit tests and GitHub Actions CI.
+- Browser-based Eramarindo AI Command Center served by the FM-001 service.
+- Authenticated provider readiness endpoint; only enabled/configured booleans are exposed, never provider credentials.
+- Deterministic unit tests and GitHub Actions CI.
 - Architecture, security baseline, and staged delivery roadmap.
 
 ## Quick start
@@ -42,7 +44,9 @@ The sample environment is intentionally unconfigured. Never commit real secrets 
 ## API
 
 - `GET /health` — liveness check.
-- `GET /` or `/app` — Development Command Center UI.\n- `GET /v1/providers/status` — authenticated provider enablement/configuration status (boolean only).\n- `GET /v1/models` — authenticated list of enabled provider identifiers.
+- `GET /` or `/app` — Development Command Center UI.
+- `GET /v1/providers/status` — authenticated provider enablement/configuration status (boolean only).
+- `GET /v1/models` — authenticated list of enabled provider identifiers.
 - `POST /v1/chat/completions` — single-provider completion.
 - `POST /v1/orchestrate` — authenticated orchestration.
 
