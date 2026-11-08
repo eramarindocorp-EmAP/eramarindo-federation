@@ -1,8 +1,8 @@
 # Eramarindo AI Federation — FM-001
 
-**Development foundation | Version 0.1.0**
+**Development foundation | Version 0.2.0**
 
-FM-001 is the provider-neutral gateway for connecting OpenAI, DeepSeek, and Google Gemini behind one internal API. This repository is the Development workspace for the Eramarindo AI Federation.
+FM-001 is the provider-neutral gateway and orchestration engine for connecting OpenAI, DeepSeek, and Google Gemini behind one internal API. This repository is the Development workspace for the Eramarindo AI Federation.
 
 ## Governance status
 
@@ -21,7 +21,8 @@ FM-001 is the provider-neutral gateway for connecting OpenAI, DeepSeek, and Goog
 - Opt-in provider allowlist; no provider is enabled by default.
 - Bearer-token authentication, request size limits, message validation, request timeout, basic rate limiting, and request IDs.
 - Liveness endpoint, authenticated provider discovery, structured logs without prompt/completion content.
-- Built-in Node test runner and GitHub Actions CI workflow.
+- Orchestration modes: single provider, parallel comparison, strict-majority exact-text consensus, and ordered fallback.
+- Deterministic unit tests and GitHub Actions CI.
 - Architecture, security baseline, and staged delivery roadmap.
 
 ## Quick start
@@ -42,22 +43,31 @@ The sample environment is intentionally unconfigured. Never commit real secrets 
 
 - `GET /health` — liveness check.
 - `GET /v1/models` — authenticated list of enabled provider identifiers.
-- `POST /v1/chat/completions` — authenticated provider request.
+- `POST /v1/chat/completions` — single-provider completion.
+- `POST /v1/orchestrate` — authenticated orchestration.
 
-Example:
+Example parallel request:
 
-```bash
-curl -X POST http://127.0.0.1:8787/v1/chat/completions \
-  -H "Authorization: Bearer $FM001_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{"provider":"openai","messages":[{"role":"user","content":"Hello"}]}'
+```json
+{
+  "plan": { "mode": "parallel", "providers": ["openai", "deepseek", "gemini"] },
+  "messages": [{ "role": "user", "content": "Compare the approved alternatives." }]
+}
 ```
+
+Modes:
+- `single`: exactly one provider.
+- `parallel`: 2–3 providers called concurrently; all outcomes returned.
+- `consensus`: declares agreement only when a strict majority returns matching normalized text. This is not semantic or factual verification.
+- `fallback`: tries providers in the supplied order and stops at the first successful non-empty response.
+
+Multi-provider modes require the providers to be explicitly enabled. Parallel and consensus requests can generate multiple provider charges after credentials are configured. No provider is enabled by default.
 
 See [Architecture](docs/ARCHITECTURE.md), [Security](docs/SECURITY.md), and [Roadmap](docs/ROADMAP.md).
 
 ## Current limitations
 
-This is a foundation, not a production-ready federation platform. It does not yet include a Command Center UI, enterprise identity/RBAC, durable audit storage, distributed quotas, streaming, tool execution, consensus orchestration, retrieval, or deployment automation. The in-memory rate limiter is per process only.
+This remains a Development MVP, not a production-ready federation platform. It does not yet include a Command Center UI, enterprise identity/RBAC, durable audit storage, distributed quotas, streaming, tool execution, semantic response evaluation, retrieval, or deployment automation. The in-memory rate limiter is per process only. The bootstrap bearer token is not suitable as enterprise identity.
 
 ## Operating principle
 
