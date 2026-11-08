@@ -4,12 +4,12 @@
 FM-001 is the provider-neutral gateway and orchestration boundary for the Eramarindo AI Federation. It provides one authenticated internal API for OpenAI, DeepSeek, and Gemini while keeping provider credentials on the server.
 
 ## Implemented development scope
-- Node.js 22+ HTTP service with no third-party runtime dependencies.
+- Shared Node.js 22+ HTTP request handler with no third-party runtime dependencies; runnable as a local HTTP server and exposed through a Vercel catch-all Node.js Function.
 - Provider adapters: OpenAI Chat Completions, DeepSeek Chat Completions, and Gemini generateContent.
 - Explicit per-environment provider allowlist.
 - Bearer-token authentication, bounded request bodies, request timeout, basic per-process rate limiting, and request correlation IDs.
 - Health, model-discovery, and authenticated provider-readiness endpoints.
-- Browser-based Development Command Center served from `/` and `/app`; UI calls the same-origin FM-001 API.
+- Browser-based Development Command Center served locally from `/` and `/app`, and as a Vercel static asset from `public/`; the Vercel UI calls the same-origin `/api` function prefix.
 - Structured operational logs that omit prompts and completions.
 - Orchestration endpoint supporting single, parallel, strict-majority consensus, and ordered fallback modes.
 - Provider-specific model overrides through the server-side request's `models` map.
@@ -67,3 +67,8 @@ The caller must select providers that are enabled in `FM001_ENABLED_PROVIDERS`. 
 - Consensus uses exact normalized text equality and must not be represented as a factual correctness guarantee.
 - Provider errors are returned as per-provider outcomes for multi-provider modes; operational telemetry excludes prompts and completions.
 - The Command Center is same-origin only; no permissive CORS policy is configured.
+
+
+## Vercel Development deployment
+
+The Vercel adapter is `api/[...path].js` and delegates to the shared `handleRequest` function in `src/server.js`. It strips the `/api` prefix so the public route contract remains unchanged. Static assets are served from `public/`; `vercel.json` sets the `sin1` region, a 45-second function maximum, and security headers. See [Vercel Development Hosting](VERCEL-DEVELOPMENT.md) for environment variables and serverless limitations.
