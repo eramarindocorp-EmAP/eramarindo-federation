@@ -76,6 +76,9 @@ export function createServer() {
       return send(response, error.status || 400, { error: { code: "invalid_request", message: error.message } }, requestId);
     }
 
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return send(response, 400, { error: { code: "invalid_request", message: "Request body must be a JSON object" } }, requestId);
+    }
     const provider = typeof body.provider === "string" ? body.provider.toLowerCase() : "";
     if (!enabledProviders.has(provider)) {
       return send(response, 400, { error: { code: "provider_disabled", message: "Provider is not enabled in this environment" } }, requestId);
