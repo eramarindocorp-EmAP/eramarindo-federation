@@ -8,7 +8,8 @@ FM-001 is the provider-neutral gateway and orchestration boundary for the Eramar
 - Provider adapters: OpenAI Chat Completions, DeepSeek Chat Completions, and Gemini generateContent.
 - Explicit per-environment provider allowlist.
 - Bearer-token authentication, bounded request bodies, request timeout, basic per-process rate limiting, and request correlation IDs.
-- Health and model-discovery endpoints.
+- Health, model-discovery, and authenticated provider-readiness endpoints.
+- Browser-based Development Command Center served from `/` and `/app`; UI calls the same-origin FM-001 API.
 - Structured operational logs that omit prompts and completions.
 - Orchestration endpoint supporting single, parallel, strict-majority consensus, and ordered fallback modes.
 - Provider-specific model overrides through the server-side request's `models` map.
@@ -62,6 +63,7 @@ The caller must select providers that are enabled in `FM001_ENABLED_PROVIDERS`. 
 ## Known limitations
 - The current bearer token is a Development bootstrap mechanism, not enterprise identity or per-user authorization.
 - Rate limiting is in-memory and per-process.
-- No durable audit ledger, distributed quotas, streaming, tool execution, semantic judge, retrieval, or Command Center UI.
+- No durable audit ledger, distributed quotas, streaming, tool execution, semantic judge, or retrieval. The Command Center is a lightweight Development UI, not an enterprise workspace.
 - Consensus uses exact normalized text equality and must not be represented as a factual correctness guarantee.
 - Provider errors are returned as per-provider outcomes for multi-provider modes; operational telemetry excludes prompts and completions.
+- The Command Center is same-origin only; no permissive CORS policy is configured.
