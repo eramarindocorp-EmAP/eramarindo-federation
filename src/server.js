@@ -1,5 +1,7 @@
 import http from "node:http";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { callProvider } from "./providers.js";
 import { orchestrate } from "./orchestrator.js";
 import { createRateLimiter, isAuthorized, parseEnabledProviders } from "./security.js";
@@ -9,13 +11,16 @@ const enabledProviders = parseEnabledProviders(env.FM001_ENABLED_PROVIDERS);
 const maxBodyBytes = Number(env.FM001_MAX_BODY_BYTES || 1_048_576);
 const timeoutMs = Number(env.FM001_REQUEST_TIMEOUT_MS || 30_000);
 const rateLimit = createRateLimiter(Number(env.FM001_RATE_LIMIT_PER_MINUTE || 60));
+const dashboardPath = fileURLToPath(new URL("../web/index.html", import.meta.url));
 
 function send(response, status, payload, requestId) {
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
     "x-request-id": requestId,
-    "x-content-type-options": "nosniff"
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "referrer-policy": "no-referrer"
   });
   response.end(JSON.stringify(payload));
 }
@@ -57,6 +62,22 @@ export function createServer() {
     const requestId = randomUUID();
     const startedAt = Date.now();
     const url = new URL(request.url, "http://localhost");
+    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/app")) {
+      try {
+        const html = await readFile(dashboardPath);
+        response.writeHead(200, {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "no-store",
+          "x-content-type-options": "nosniff",
+          "x-frame-options": "DENY",
+          "referrer-policy": "no-referrer",
+          "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+        });
+        return response.end(html);
+      } catch {
+        return send(response, 503, { error: { code: "dashboard_unavailable", message: "Command Center UI is unavailable" } }, requestId);
+      }
+    }
     if (request.method === "GET" && url.pathname === "/health") {
       return send(response, 200, { status: "ok", service: "FM-001", environment: env.NODE_ENV || "development" }, requestId);
     }
@@ -66,6 +87,16 @@ export function createServer() {
     const clientKey = request.socket.remoteAddress || "unknown";
     if (!rateLimit(clientKey)) {
       return send(response, 429, { error: { code: "rate_limited", message: "Request limit exceeded" } }, requestId);
+    }
+    if (request.method === "GET" && url.pathname === "/v1/providers/status") {
+      return send(response, 200, {
+        environment: env.NODE_ENV || "development",
+        providers: {
+          openai: { enabled: enabledProviders.has("openai"), configured: Boolean(env.OPENAI_API_KEY && env.OPENAI_MODEL) },
+          deepseek: { enabled: enabledProviders.has("deepseek"), configured: Boolean(env.DEEPSEEK_API_KEY && env.DEEPSEEK_MODEL) },
+          gemini: { enabled: enabledProviders.has("gemini"), configured: Boolean(env.GEMINI_API_KEY && env.GEMINI_MODEL) }
+        }
+      }, requestId);
     }
     if (request.method === "GET" && url.pathname === "/v1/models") {
       return send(response, 200, {
