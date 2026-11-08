@@ -7,6 +7,9 @@
 - Provider allowlist is opt-in and defaults to empty.
 - Request size cap, message count cap, model identifier length cap, timeout, and basic rate limiting.
 - No prompt or completion content in application logs.
+- Command Center is served same-origin with a restrictive Content Security Policy and frame/referrer protections.
+- Browser stores the gateway bearer token only in page memory; provider API keys never reach the browser.
+- Provider readiness endpoint exposes booleans only, not secret values.
 - No CORS policy is enabled; keep the service behind a trusted reverse proxy or private network.
 
 ## Required before any shared or production use
