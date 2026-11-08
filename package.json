@@ -1,14 +1,14 @@
 {
   "name": "@eramarindo/fm-001-gateway",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Development foundation for the Eramarindo AI Federation gateway",
+  "description": "Development foundation and orchestration engine for the Eramarindo AI Federation",
   "engines": { "node": ">=22.0.0" },
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test",
-    "check": "node --check src/server.js && node --check src/providers.js && node --check src/security.js"
+    "check": "node --check src/server.js && node --check src/providers.js && node --check src/security.js && node --check src/orchestrator.js"
   }
 }
