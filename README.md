@@ -23,6 +23,7 @@ FM-001 is the provider-neutral gateway and orchestration engine for connecting O
 - Liveness endpoint, authenticated provider discovery, structured logs without prompt/completion content.
 - Orchestration modes: single provider, parallel comparison, strict-majority exact-text consensus, and ordered fallback.
 - Browser-based Eramarindo AI Command Center served by the FM-001 service.
+- Vercel Node.js Function adapter preserving the same FM-001 handler and API routes; static Command Center assets under `public/`.
 - Authenticated provider readiness endpoint; only enabled/configured booleans are exposed, never provider credentials.
 - Deterministic unit tests and GitHub Actions CI.
 - Architecture, security baseline, and staged delivery roadmap.
@@ -67,7 +68,7 @@ Modes:
 
 Multi-provider modes require the providers to be explicitly enabled. Parallel and consensus requests can generate multiple provider charges after credentials are configured. No provider is enabled by default.
 
-See [Architecture](docs/ARCHITECTURE.md), [Security](docs/SECURITY.md), and [Roadmap](docs/ROADMAP.md).
+See [Architecture](docs/ARCHITECTURE.md), [Security](docs/SECURITY.md), [Vercel Development Hosting](docs/VERCEL-DEVELOPMENT.md), and [Roadmap](docs/ROADMAP.md).
 
 ## Current limitations
 
