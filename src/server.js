@@ -1,5 +1,7 @@
 import http from "node:http";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { callProvider } from "./providers.js";
 import { orchestrate } from "./orchestrator.js";
 import { createRateLimiter, isAuthorized, parseEnabledProviders } from "./security.js";
@@ -9,18 +11,33 @@ const enabledProviders = parseEnabledProviders(env.FM001_ENABLED_PROVIDERS);
 const maxBodyBytes = Number(env.FM001_MAX_BODY_BYTES || 1_048_576);
 const timeoutMs = Number(env.FM001_REQUEST_TIMEOUT_MS || 30_000);
 const rateLimit = createRateLimiter(Number(env.FM001_RATE_LIMIT_PER_MINUTE || 60));
+const dashboardPath = fileURLToPath(new URL("../web/index.html", import.meta.url));
 
 function send(response, status, payload, requestId) {
   response.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
     "x-request-id": requestId,
-    "x-content-type-options": "nosniff"
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "referrer-policy": "no-referrer"
   });
   response.end(JSON.stringify(payload));
 }
 
 async function readBody(request) {
+  if (request.body !== undefined && request.body !== null) {
+    if (typeof request.body === "string" || Buffer.isBuffer(request.body)) {
+      const raw = Buffer.isBuffer(request.body) ? request.body : Buffer.from(request.body);
+      if (raw.length > maxBodyBytes) throw Object.assign(new Error("Request body too large"), { status: 413 });
+      try { return JSON.parse(raw.toString("utf8")); }
+      catch { throw Object.assign(new Error("Request body must be valid JSON"), { status: 400 }); }
+    }
+    if (typeof request.body === "object") {
+      if (Buffer.byteLength(JSON.stringify(request.body)) > maxBodyBytes) throw Object.assign(new Error("Request body too large"), { status: 413 });
+      return request.body;
+    }
+  }
   let size = 0;
   const chunks = [];
   for await (const chunk of request) {
@@ -52,12 +69,28 @@ function validModels(models) {
       ["openai", "deepseek", "gemini"].includes(provider) && typeof model === "string" && model.length <= 160));
 }
 
-export function createServer() {
-  return http.createServer(async (request, response) => {
+export async function handleRequest(request, response) {
     const requestId = randomUUID();
     const startedAt = Date.now();
     const url = new URL(request.url, "http://localhost");
-    if (request.method === "GET" && url.pathname === "/health") {
+    const pathname = url.pathname.startsWith("/api/") ? url.pathname.slice(4) : (url.pathname === "/api" ? "/" : url.pathname);
+    if (request.method === "GET" && (pathname === "/" || pathname === "/app")) {
+      try {
+        const html = await readFile(dashboardPath);
+        response.writeHead(200, {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "no-store",
+          "x-content-type-options": "nosniff",
+          "x-frame-options": "DENY",
+          "referrer-policy": "no-referrer",
+          "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+        });
+        return response.end(html);
+      } catch {
+        return send(response, 503, { error: { code: "dashboard_unavailable", message: "Command Center UI is unavailable" } }, requestId);
+      }
+    }
+    if (request.method === "GET" && pathname === "/health") {
       return send(response, 200, { status: "ok", service: "FM-001", environment: env.NODE_ENV || "development" }, requestId);
     }
     if (!isAuthorized(request, env.FM001_API_KEY)) {
@@ -67,13 +100,23 @@ export function createServer() {
     if (!rateLimit(clientKey)) {
       return send(response, 429, { error: { code: "rate_limited", message: "Request limit exceeded" } }, requestId);
     }
-    if (request.method === "GET" && url.pathname === "/v1/models") {
+    if (request.method === "GET" && pathname === "/v1/providers/status") {
+      return send(response, 200, {
+        environment: env.NODE_ENV || "development",
+        providers: {
+          openai: { enabled: enabledProviders.has("openai"), configured: Boolean(env.OPENAI_API_KEY && env.OPENAI_MODEL) },
+          deepseek: { enabled: enabledProviders.has("deepseek"), configured: Boolean(env.DEEPSEEK_API_KEY && env.DEEPSEEK_MODEL) },
+          gemini: { enabled: enabledProviders.has("gemini"), configured: Boolean(env.GEMINI_API_KEY && env.GEMINI_MODEL) }
+        }
+      }, requestId);
+    }
+    if (request.method === "GET" && pathname === "/v1/models") {
       return send(response, 200, {
         object: "list",
         data: [...enabledProviders].map((provider) => ({ id: provider, object: "model", owned_by: provider }))
       }, requestId);
     }
-    if (request.method !== "POST" || !["/v1/chat/completions", "/v1/orchestrate"].includes(url.pathname)) {
+    if (request.method !== "POST" || !["/v1/chat/completions", "/v1/orchestrate"].includes(pathname)) {
       return send(response, 404, { error: { code: "not_found", message: "Route not found" } }, requestId);
     }
 
@@ -93,7 +136,7 @@ export function createServer() {
       return send(response, 400, { error: { code: "invalid_model", message: "model identifiers must be strings of at most 160 characters" } }, requestId);
     }
 
-    if (url.pathname === "/v1/orchestrate") {
+    if (pathname === "/v1/orchestrate") {
       try {
         const result = await orchestrate({
           plan: { ...body.plan, models: body.models },
@@ -129,7 +172,10 @@ export function createServer() {
       console.warn(JSON.stringify({ event: "provider_error", requestId, provider, status, durationMs: Date.now() - startedAt, error: error.message }));
       return send(response, status, { error: { code: "provider_error", message: error.message }, request_id: requestId }, requestId);
     }
-  });
+}
+
+export function createServer() {
+  return http.createServer(handleRequest);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

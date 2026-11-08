@@ -4,11 +4,13 @@
   "private": true,
   "type": "module",
   "description": "Development foundation and orchestration engine for the Eramarindo AI Federation",
-  "engines": { "node": ">=22.0.0" },
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test": "node --test",
-    "check": "node --check src/server.js && node --check src/providers.js && node --check src/security.js && node --check src/orchestrator.js"
+    "check": "node --check src/server.js && node --check src/providers.js && node --check src/security.js && node --check src/orchestrator.js && node --check 'api/[...path].js'"
   }
 }

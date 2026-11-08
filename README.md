@@ -1,6 +1,6 @@
 # Eramarindo AI Federation — FM-001
 
-**Development foundation | Version 0.2.0**
+**Development foundation | Version 0.3.0**
 
 FM-001 is the provider-neutral gateway and orchestration engine for connecting OpenAI, DeepSeek, and Google Gemini behind one internal API. This repository is the Development workspace for the Eramarindo AI Federation.
 
@@ -22,6 +22,9 @@ FM-001 is the provider-neutral gateway and orchestration engine for connecting O
 - Bearer-token authentication, request size limits, message validation, request timeout, basic rate limiting, and request IDs.
 - Liveness endpoint, authenticated provider discovery, structured logs without prompt/completion content.
 - Orchestration modes: single provider, parallel comparison, strict-majority exact-text consensus, and ordered fallback.
+- Browser-based Eramarindo AI Command Center served by the FM-001 service.
+- Vercel Node.js Function adapter preserving the same FM-001 handler and API routes; static Command Center assets under `public/`.
+- Authenticated provider readiness endpoint; only enabled/configured booleans are exposed, never provider credentials.
 - Deterministic unit tests and GitHub Actions CI.
 - Architecture, security baseline, and staged delivery roadmap.
 
@@ -42,6 +45,8 @@ The sample environment is intentionally unconfigured. Never commit real secrets 
 ## API
 
 - `GET /health` — liveness check.
+- `GET /` or `/app` — Development Command Center UI.
+- `GET /v1/providers/status` — authenticated provider enablement/configuration status (boolean only).
 - `GET /v1/models` — authenticated list of enabled provider identifiers.
 - `POST /v1/chat/completions` — single-provider completion.
 - `POST /v1/orchestrate` — authenticated orchestration.
@@ -63,11 +68,11 @@ Modes:
 
 Multi-provider modes require the providers to be explicitly enabled. Parallel and consensus requests can generate multiple provider charges after credentials are configured. No provider is enabled by default.
 
-See [Architecture](docs/ARCHITECTURE.md), [Security](docs/SECURITY.md), and [Roadmap](docs/ROADMAP.md).
+See [Architecture](docs/ARCHITECTURE.md), [Security](docs/SECURITY.md), [Vercel Development Hosting](docs/VERCEL-DEVELOPMENT.md), and [Roadmap](docs/ROADMAP.md).
 
 ## Current limitations
 
-This remains a Development MVP, not a production-ready federation platform. It does not yet include a Command Center UI, enterprise identity/RBAC, durable audit storage, distributed quotas, streaming, tool execution, semantic response evaluation, retrieval, or deployment automation. The in-memory rate limiter is per process only. The bootstrap bearer token is not suitable as enterprise identity.
+This remains a Development MVP, not a production-ready federation platform. It does not yet include enterprise identity/RBAC, durable audit storage, distributed quotas, streaming, tool execution, semantic response evaluation, retrieval, or deployment automation. The Command Center keeps the gateway token in page memory only and does not store provider credentials in the browser. The in-memory rate limiter is per process only. The bootstrap bearer token is not suitable as enterprise identity.
 
 ## Operating principle
 
