@@ -6,3 +6,6 @@ coverage/
 .nyc_output/
 .DS_Store
 *.log
+
+# Local Supabase browser configuration (publishable key only; keep out of Git)
+public/people-assessment/supabase-config.js
