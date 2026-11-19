@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - feat/people-assessment-centralized
+      - feat/people-assessment-centralized\n      - main
     paths:
       - "public/people-assessment/**"
       - ".github/workflows/people-assessment-pages.yml"
