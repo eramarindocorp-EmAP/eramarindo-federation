@@ -53,7 +53,7 @@ Use separate OpenAI project/service-account credentials where possible, with lea
 
 ## Task persistence and audit
 
-The route writes task status and events to `public.ai_bridge_tasks` and `public.ai_bridge_events` using the server-only Supabase secret key. The instruction/context and final result are persisted for task traceability; apply a retention policy appropriate to the sensitivity of the data. Events and application logs avoid storing raw prompt/completion content. `store: false` is sent to the OpenAI Responses API.
+The route writes task status and events to `public.ai_bridge_tasks` and `public.ai_bridge_events` using the server-only Supabase secret key. The key is sent only in the `apikey` header; do not send a new `sb_secret_...` key as `Authorization: Bearer`, because Supabase documents that these opaque keys are not JWTs. The instruction/context and final result are persisted for task traceability; apply a retention policy appropriate to the sensitivity of the data. Events and application logs avoid storing raw prompt/completion content. `store: false` is sent to the OpenAI Responses API.
 
 Task statuses: `queued` → `processing` → `completed` or `failed`.
 
