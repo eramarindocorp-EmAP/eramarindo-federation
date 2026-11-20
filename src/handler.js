@@ -72,7 +72,13 @@ export async function handleRequest(request, response) {
   const requestId = randomUUID();
   const startedAt = Date.now();
   const url = new URL(request.url, "http://localhost");
-  const pathname = url.pathname.startsWith("/api/") ? url.pathname.slice(4) : (url.pathname === "/api" ? "/" : url.pathname);
+  // Vercel may expose the function route with one or more /api prefixes,
+  // depending on whether the request arrived through a rewrite or direct URL.
+  // Normalize all leading /api segments so dashboard and direct API calls resolve identically.
+  let pathname = url.pathname.replace(/\/+$/, "") || "/";
+  while (pathname === "/api" || pathname.startsWith("/api/")) {
+    pathname = pathname === "/api" ? "/" : pathname.slice(4);
+  }
 
   if (request.method === "GET" && (pathname === "/" || pathname === "/app")) {
     try {
