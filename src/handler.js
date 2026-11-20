@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { callProvider } from "./providers.js";
 import { orchestrate } from "./orchestrator.js";
 import { createRateLimiter, isAuthorized, parseEnabledProviders } from "./security.js";
+import { handleAgentBridge } from "./agent-bridge.js";
 
 const env = process.env;
 const enabledProviders = parseEnabledProviders(env.FM001_ENABLED_PROVIDERS);
@@ -145,6 +146,8 @@ export async function handleRequest(request, response) {
   if (!rateLimit(String(clientKey))) {
     return send(response, 429, { error: { code: "rate_limited", message: "Request limit exceeded" } }, requestId);
   }
+
+  if (await handleAgentBridge({ request, response, pathname, requestId, env })) return;
 
   if (request.method === "GET" && pathname === "/v1/providers/status") {
     return send(response, 200, {
