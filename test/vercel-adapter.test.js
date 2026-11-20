@@ -18,3 +18,9 @@ test("Vercel static Command Center uses the /api gateway prefix", async () => {
   assert.equal(scripts.length, 1);
   assert.doesNotThrow(() => new vm.Script(scripts[0][1]));
 });
+
+
+test("Vercel rewrites root to the function without double-prefixing API paths", async () => {
+  const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
+  assert.deepEqual(config.rewrites, [{ source: "/", destination: "/api/app" }]);
+});
