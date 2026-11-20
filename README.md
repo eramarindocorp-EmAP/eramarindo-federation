@@ -70,6 +70,12 @@ Multi-provider modes require the providers to be explicitly enabled. Parallel an
 
 See [Architecture](docs/ARCHITECTURE.md), [Security](docs/SECURITY.md), [Vercel Development Hosting](docs/VERCEL-DEVELOPMENT.md), and [Roadmap](docs/ROADMAP.md).
 
+## Ferguson ↔ Gebriel Nathza AI Bridge
+
+The Development gateway now includes a two-way, sender-authenticated relay at `POST /v1/agents/message`, plus profile/readiness endpoints for Ferguson and Gebriel Nathza. Each agent uses its own OpenAI API key and model configuration; tasks and audit events are persisted in the Supabase `public.ai_bridge_tasks` and `public.ai_bridge_events` tables. See [Bridge API and setup](docs/FERGUSON-GEBRIEL-BRIDGE.md).
+
+The bridge is opt-in and remains unconfigured until the operator provisions the two OpenAI API keys, two sender tokens, FM-001 gateway token, and Supabase server secret in the Development environment. No provider keys are committed.
+
 ## Current limitations
 
 This remains a Development MVP, not a production-ready federation platform. It does not yet include enterprise identity/RBAC, durable audit storage, distributed quotas, streaming, tool execution, semantic response evaluation, retrieval, or deployment automation. The Command Center keeps the gateway token in page memory only and does not store provider credentials in the browser. The in-memory rate limiter is per process only. The bootstrap bearer token is not suitable as enterprise identity.
