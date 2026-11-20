@@ -56,7 +56,7 @@ function selected(){return [...document.querySelectorAll('.checks input:checked'
 function auth(){return {"authorization":"Bearer "+token,"content-type":"application/json"}}
 function setStatus(id,enabled,configured){$("dot-"+id).classList.toggle("ok",enabled&&configured);$("status-"+id).textContent=enabled?(configured?"Enabled · credential configured":"Enabled · credential missing"):"Not enabled"}
 async function connect(){
- gateway=$("gateway").value.trim().replace(/\/$/,"");token=$("token").value;
+ gateway=$("gateway").value.trim().replace(/\/$/,"");if(gateway && !gateway.endsWith("/api"))gateway+="/api";token=$("token").value;
  if(!gateway||!token){$("connection").textContent="Isi URL gateway dan token Development terlebih dahulu.";return}
  $("connection").textContent="Memeriksa gateway...";
  try{
