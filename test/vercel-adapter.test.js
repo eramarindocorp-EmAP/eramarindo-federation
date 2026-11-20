@@ -5,7 +5,7 @@ import vm from "node:vm";
 
 test("Vercel catch-all function delegates to the shared FM-001 handler", async () => {
   const source = await readFile(new URL("../api/[...path].js", import.meta.url), "utf8");
-  assert.match(source, /import \{ handleRequest \} from "\.\.\/src\/server\.js"/);
+  assert.match(source, /import \{ handleRequest \} from "\.\.\/src\/handler\.js"/);
   assert.match(source, /return handleRequest\(request, response\)/);
   assert.match(source, /export default async function handler/);
 });
