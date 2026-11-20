@@ -36,11 +36,8 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
-          cache: npm
 
-      - name: Install dependencies
-        run: npm ci
-
+      # FM-001 uses only Node.js built-ins, so no lockfile-based install is needed.
       - name: Run syntax checks
         run: npm run check
 
