@@ -13,24 +13,33 @@ permissions:
 jobs:
   deployment-check:
     name: Validate deployed FM-001 commit
+    if: >-
+      github.event.client_payload.environment == 'production' &&
+      github.event.client_payload.project.name == 'eramarindo-federation' &&
+      github.event.client_payload.git.ref == 'main'
     runs-on: ubuntu-latest
     steps:
-      # This action reports the final job result to Vercel on the exact
-      # commit that triggered the deployment-ready event.
+      # The action reports the actual final result of this job to the deployed commit.
       - name: Report result to Vercel
-        uses: vercel/repository-dispatch/actions/status@v1
+        uses: vercel/repository-dispatch/actions/status@30f760c6640485cd92f8c785ef361382555fb712
         with:
-          name: "Deployment"
+          name: "FM-001 Production Deployment"
 
+      # Only the deployed main-branch SHA for this project reaches this step.
       - name: Check out the deployed commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.event.client_payload.git.sha }}
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Run syntax checks
         run: npm run check
