@@ -63,6 +63,7 @@ async function dbRequest(path, options = {}, env = process.env) {
   if (!base || !key) throw Object.assign(new Error("Supabase AI Bridge storage is not configured"), { status: 503 });
   const response = await fetch(`${base.replace(/\/$/, "")}/rest/v1/${path}`, {
     ...options,
+    signal: AbortSignal.timeout(6000),
     headers: {
       apikey: key,
       "content-type": "application/json",
@@ -141,9 +142,10 @@ async function invokeAgent(agent, task, env) {
         instruction: task.instruction,
         context: task.context || {}
       }),
-      store: false
+      store: false,
+      max_output_tokens: 3000
     }),
-    signal: AbortSignal.timeout(50000)
+    signal: AbortSignal.timeout(30000)
   });
   const raw = await response.text();
   let payload = {};
@@ -222,7 +224,8 @@ export async function handleAgentBridge({ request, response, pathname, requestId
   } catch (error) {
     try { await failTask(taskId, from, error.message, env); } catch (storageError) { console.warn(JSON.stringify({ event: "agent_bridge_audit_failed", request_id: requestId, error: storageError.message })); }
     console.warn(JSON.stringify({ event: "agent_bridge_failed", request_id: requestId, task_id: taskId, from, to, instruction_sha256: digest, error: error.message }));
-    json(response, error.status || 502, { error: { code: "agent_bridge_failed", message: error.message }, request_id: requestId, task_id: taskId }, requestId);
+    const status = error.status || (error.name === "TimeoutError" || error.name === "AbortError" ? 504 : 502);
+    json(response, status, { error: { code: "agent_bridge_failed", message: error.message }, request_id: requestId, task_id: taskId }, requestId);
   }
   return true;
 }
