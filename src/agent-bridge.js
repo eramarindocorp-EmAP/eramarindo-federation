@@ -65,7 +65,6 @@ async function dbRequest(path, options = {}, env = process.env) {
     ...options,
     headers: {
       apikey: key,
-      authorization: `Bearer ${key}`,
       "content-type": "application/json",
       ...(options.headers || {})
     }
