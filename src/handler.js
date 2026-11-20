@@ -75,7 +75,7 @@ async function federationRequest(path, options = {}) {
   if (!base || !key) {
     throw Object.assign(new Error("Federation database is not configured on this deployment"), { status: 503 });
   }
-  const response = await fetch(`${base.replace(/\\/$/, "")}/rest/v1/${path}`, {
+  const response = await fetch(`${base.replace(/\/$/, "")}/rest/v1/${path}`, {
     ...options,
     headers: {
       apikey: key,
