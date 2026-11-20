@@ -34,10 +34,6 @@
     {
       "source": "/",
       "destination": "/api/app"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/api/$1"
     }
   ]
 }
