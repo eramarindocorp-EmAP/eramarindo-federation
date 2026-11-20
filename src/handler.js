@@ -75,7 +75,7 @@ export async function handleRequest(request, response) {
   // Vercel may expose the function route with one or more /api prefixes,
   // depending on whether the request arrived through a rewrite or direct URL.
   // Normalize all leading /api segments so dashboard and direct API calls resolve identically.
-  let pathname = url.pathname.replace(/\\/+$/, "") || "/";
+  let pathname = url.pathname.replace(/\/+$/, "") || "/";
   while (pathname === "/api" || pathname.startsWith("/api/")) {
     pathname = pathname === "/api" ? "/" : pathname.slice(4);
   }
