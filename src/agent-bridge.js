@@ -173,8 +173,7 @@ export async function handleAgentBridge({ request, response, pathname, requestId
     }, requestId), true;
   }
 
-  const profile = pathname === "/v1/ferguson/profile" ? "ferguson"
-    : pathname === "/v1/gebriel/profile" ? "gebriel_nathza" : null;
+  const profile = pathname === "/v1/gebriel/profile" ? "gebriel_nathza" : null;
   if (request.method === "GET" && profile) {
     const spec = AGENTS[profile];
     return json(response, 200, { agent_id: spec.id, display_name: spec.name, role: spec.role, provider: "openai", configured: Boolean(env[spec.key] && env[spec.model] && env[spec.token]) }, requestId), true;
