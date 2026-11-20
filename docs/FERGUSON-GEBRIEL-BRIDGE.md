@@ -6,7 +6,7 @@ This feature adds a server-side, authenticated relay to the existing FM-001 Deve
 
 ## Routes
 
-All routes below are behind the FM-001 bearer authentication and gateway rate limiter.
+All routes below are behind the FM-001 bearer authentication and gateway rate limiter. On Vercel, prepend `/api` to these paths (for example, `/api/v1/agents/message`); the local Node server uses the paths exactly as listed.
 
 - `GET /v1/agents/status` — readiness booleans only; never returns secrets.
 - `GET /v1/ferguson/profile` — Ferguson profile.
@@ -62,7 +62,7 @@ This is a synchronous one-hop relay, not a durable background queue. A Vercel re
 ## Example
 
 ```bash
-curl -X POST "$FM001_BASE_URL/v1/agents/message" \
+curl -X POST "$FM001_BASE_URL/api/v1/agents/message" \
   -H "Authorization: Bearer $FM001_API_KEY" \
   -H "x-agent-token: $FERGUSON_BRIDGE_TOKEN" \
   -H "Content-Type: application/json" \
