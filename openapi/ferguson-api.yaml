@@ -1,0 +1,175 @@
+openapi: 3.0.3
+info:
+  title: Ferguson Strategic Intelligence API
+  version: 1.0.0
+  description: API contract for Ferguson A. Sinclair in the Eramarindo AI Federation.
+servers:
+  - url: https://eramarindo-federation.vercel.app
+    description: Production (confirm active deployment before use)
+  - url: http://localhost:8787
+    description: Local development
+security:
+  - BearerAuth: []
+paths:
+  /api/health:
+    get:
+      security: []
+      summary: Health check
+      responses:
+        '200':
+          description: Gateway is alive
+  /api/v1/providers/status:
+    get:
+      summary: Provider configuration status
+      responses:
+        '200':
+          description: Provider enabled/configured flags
+  /api/v1/ferguson/profile:
+    get:
+      summary: Ferguson agent profile and capability declaration
+      responses:
+        '200':
+          description: Agent profile
+  /api/v1/ferguson/think:
+    post:
+      summary: Strategic reasoning
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptRequest'
+      responses:
+        '200':
+          description: Reasoning result
+        '503':
+          description: No provider enabled
+  /api/v1/ferguson/analyze:
+    post:
+      summary: Structured analysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptRequest'
+      responses:
+        '200':
+          description: Analysis result
+  /api/v1/ferguson/research:
+    post:
+      summary: Research assistance over supplied prompts and sources
+      description: Does not imply live web retrieval unless a search adapter is separately configured.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptRequest'
+      responses:
+        '200':
+          description: Research assistance result
+  /api/v1/ferguson/strategy:
+    post:
+      summary: Strategic planning
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptRequest'
+      responses:
+        '200':
+          description: Strategy result
+  /api/v1/ferguson/execute:
+    post:
+      summary: Register an execution request for human approval
+      description: Registers a pending task only. It does not execute external or financial actions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutionRequest'
+      responses:
+        '202':
+          description: Task registered and awaiting approval
+        '502':
+          description: Task registration failed
+  /api/v1/ferguson/tasks:
+    get:
+      summary: List recent Federation tasks
+      responses:
+        '200':
+          description: Task list
+        '503':
+          description: Database integration is not configured
+  /api/v1/ferguson/audit:
+    get:
+      summary: Read recent task runs, approval events and integration events
+      responses:
+        '200':
+          description: Audit events
+        '503':
+          description: Database integration is not configured
+  /api/v1/orchestrate:
+    post:
+      summary: Existing FM-001 provider orchestration
+      responses:
+        '200':
+          description: Orchestration result
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+  schemas:
+    PromptRequest:
+      type: object
+      properties:
+        prompt:
+          type: string
+          maxLength: 50000
+        input:
+          oneOf:
+            - type: string
+            - type: object
+        messages:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: object
+            required: [role, content]
+            properties:
+              role:
+                type: string
+                enum: [user, assistant]
+              content:
+                oneOf:
+                  - type: string
+                  - type: array
+        plan:
+          type: object
+          description: Optional FM-001 orchestration plan.
+        models:
+          type: object
+      description: Supply either prompt/input or messages.
+    ExecutionRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 240
+        description:
+          type: string
+          maxLength: 8000
+        task_type:
+          type: string
+          maxLength: 100
+        priority:
+          type: string
+          enum: [low, normal, high, critical]
