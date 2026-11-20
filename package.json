@@ -11,6 +11,6 @@
     "start": "node src/local.js",
     "dev": "node --watch src/local.js",
     "test": "node --test",
-    "check": "node --check src/handler.js && node --check src/local.js && node --check src/providers.js && node --check src/security.js && node --check src/orchestrator.js && node --check 'api/[...path].js'"
+    "check": "node --check src/handler.js && node --check src/local.js && node --check src/providers.js && node --check src/security.js && node --check src/agent-bridge.js && node --check src/orchestrator.js && node --check 'api/[...path].js'"
   }
 }
