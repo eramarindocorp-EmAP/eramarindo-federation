@@ -183,3 +183,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const port = Number(env.PORT || 8787);
   createServer().listen(port, host, () => console.info(`FM-001 listening on http://${host}:${port}`));
 }
+
+// Vercel Node.js runtime requires a default function export when this module
+// is discovered as a server entrypoint. Keep named exports for local server use.
+export default handleRequest;
