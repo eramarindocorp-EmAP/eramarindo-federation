@@ -3,15 +3,41 @@ const OPENAI_COMPATIBLE = {
   deepseek: { endpoint: "https://api.deepseek.com/chat/completions", key: "DEEPSEEK_API_KEY", model: "DEEPSEEK_MODEL" }
 };
 
-function providerError(provider, status) {
-  const error = new Error(`${provider} provider returned HTTP ${status}`);
+const PROVIDER_ERROR_HINTS = {
+  insufficient_quota: "API quota or credits are exhausted, or a billing limit was reached. Check provider billing, available credits, and project/organization spend limits.",
+  rate_limit_exceeded: "API request or token rate limit was reached. Reduce request frequency or token throughput, then retry after the provider reset window.",
+  billing_hard_limit_reached: "The provider hard spending limit was reached. Review the project or organization budget limit.",
+  organization_deactivated: "The provider organization is deactivated. Contact the organization owner or provider support.",
+  project_rate_limit_exceeded: "The provider project rate limit was reached. Review project limits and retry after the reset window."
+};
+
+export function providerError(provider, status, payload = {}) {
+  const details = payload && typeof payload.error === "object" && payload.error !== null ? payload.error : {};
+  const rawCode = typeof details.code === "string" ? details.code : "";
+  const rawType = typeof details.type === "string" ? details.type : "";
+  const code = (rawCode || rawType).toLowerCase();
+  const hint = PROVIDER_ERROR_HINTS[code];
+  const generic = status === 429
+    ? "Provider returned HTTP 429. Check billing/quota, project and organization spend limits, and request/token rate limits."
+    : `Provider returned HTTP ${status}.`;
+  const error = new Error(`${provider}: ${hint || generic}${code ? ` [${code}]` : ""}`);
   error.status = status >= 500 ? 502 : 400;
+  error.providerCode = code || undefined;
   return error;
 }
 
 async function readJson(response, provider) {
-  if (!response.ok) throw providerError(provider, response.status);
-  return response.json();
+  const raw = await response.text();
+  let data = {};
+  if (raw) {
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      if (response.ok) throw new Error(`${provider} provider returned an invalid JSON response`);
+    }
+  }
+  if (!response.ok) throw providerError(provider, response.status, data);
+  return data;
 }
 
 export async function callProvider({ provider, model, messages, system, signal, env = process.env }) {
