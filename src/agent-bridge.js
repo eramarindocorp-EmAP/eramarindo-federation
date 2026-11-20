@@ -57,6 +57,68 @@ async function readJson(request) {
   catch { throw Object.assign(new Error("Request body must be valid JSON"), { status: 400 }); }
 }
 
+async function dbRequest(path, options = {}, env = process.env) {
+  const base = env.SUPABASE_URL;
+  const key = env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!base || !key) throw Object.assign(new Error("Supabase AI Bridge storage is not configured"), { status: 503 });
+  const response = await fetch(`${base.replace(/\/$/, "")}/rest/v1/${path}`, {
+    ...options,
+    headers: {
+      apikey: key,
+      authorization: `Bearer ${key}`,
+      "content-type": "application/json",
+      ...(options.headers || {})
+    }
+  });
+  const raw = await response.text();
+  if (!response.ok) throw Object.assign(new Error(`Supabase AI Bridge storage failed (HTTP ${response.status})`), { status: 503 });
+  return raw ? JSON.parse(raw) : null;
+}
+
+async function recordEvent(taskId, eventType, actorAgent, payload, env) {
+  await dbRequest("ai_bridge_events", {
+    method: "POST",
+    headers: { prefer: "return=minimal" },
+    body: JSON.stringify({ task_id: taskId, event_type: eventType, actor_agent: actorAgent, payload })
+  }, env);
+}
+
+async function createTask(taskId, from, to, instruction, context, env) {
+  await dbRequest("ai_bridge_tasks", {
+    method: "POST",
+    headers: { prefer: "return=minimal" },
+    body: JSON.stringify({
+      task_id: taskId, sender_agent: from, recipient_agent: to, status: "queued",
+      message: instruction, context: context || {}
+    })
+  }, env);
+  await recordEvent(taskId, "task_received", from, { recipient_agent: to }, env);
+  await dbRequest(`ai_bridge_tasks?task_id=eq.${encodeURIComponent(taskId)}`, {
+    method: "PATCH",
+    headers: { prefer: "return=minimal" },
+    body: JSON.stringify({ status: "processing" })
+  }, env);
+  await recordEvent(taskId, "task_started", from, {}, env);
+}
+
+async function finishTask(taskId, result, env) {
+  await dbRequest(`ai_bridge_tasks?task_id=eq.${encodeURIComponent(taskId)}`, {
+    method: "PATCH",
+    headers: { prefer: "return=minimal" },
+    body: JSON.stringify({ status: "completed", result, completed_at: new Date().toISOString() })
+  }, env);
+  await recordEvent(taskId, "task_completed", result.agent, { response_id: result.response_id, model: result.model }, env);
+}
+
+async function failTask(taskId, from, error, env) {
+  await dbRequest(`ai_bridge_tasks?task_id=eq.${encodeURIComponent(taskId)}`, {
+    method: "PATCH",
+    headers: { prefer: "return=minimal" },
+    body: JSON.stringify({ status: "failed", error: String(error).slice(0, 1000), completed_at: new Date().toISOString() })
+  }, env);
+  await recordEvent(taskId, "task_failed", from, { error: String(error).slice(0, 500) }, env);
+}
+
 function config(agent, env) {
   const spec = AGENTS[agent];
   const apiKey = env[spec.key];
@@ -151,14 +213,16 @@ export async function handleAgentBridge({ request, response, pathname, requestId
     return true;
   }
 
-  const taskId = typeof body.task_id === "string" && body.task_id.length <= 120
-    ? body.task_id : requestId;
+  const taskId = requestId;
   const digest = createHash("sha256").update(body.instruction).digest("hex");
   try {
+    await createTask(taskId, from, to, body.instruction, body.context || {}, env);
     const result = await invokeAgent(to, { task_id: taskId, from, instruction: body.instruction, context: body.context || {} }, env);
+    await finishTask(taskId, result, env);
     console.info(JSON.stringify({ event: "agent_bridge_completed", request_id: requestId, task_id: taskId, from, to, instruction_sha256: digest, response_id: result.response_id }));
     json(response, 200, { id: requestId, task_id: taskId, status: "completed", from, to, result }, requestId);
   } catch (error) {
+    try { await failTask(taskId, from, error.message, env); } catch (storageError) { console.warn(JSON.stringify({ event: "agent_bridge_audit_failed", request_id: requestId, error: storageError.message })); }
     console.warn(JSON.stringify({ event: "agent_bridge_failed", request_id: requestId, task_id: taskId, from, to, instruction_sha256: digest, error: error.message }));
     json(response, error.status || 502, { error: { code: "agent_bridge_failed", message: error.message }, request_id: requestId, task_id: taskId }, requestId);
   }
