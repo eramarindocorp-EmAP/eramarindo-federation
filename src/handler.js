@@ -1,0 +1,181 @@
+import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { callProvider } from "./providers.js";
+import { orchestrate } from "./orchestrator.js";
+import { createRateLimiter, isAuthorized, parseEnabledProviders } from "./security.js";
+
+const env = process.env;
+const enabledProviders = parseEnabledProviders(env.FM001_ENABLED_PROVIDERS);
+const maxBodyBytes = Number(env.FM001_MAX_BODY_BYTES || 1_048_576);
+const timeoutMs = Number(env.FM001_REQUEST_TIMEOUT_MS || 30_000);
+const rateLimit = createRateLimiter(Number(env.FM001_RATE_LIMIT_PER_MINUTE || 60));
+const dashboardPath = fileURLToPath(new URL("../web/index.html", import.meta.url));
+
+function send(response, status, payload, requestId) {
+  response.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+    "x-request-id": requestId,
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "DENY",
+    "referrer-policy": "no-referrer"
+  });
+  response.end(JSON.stringify(payload));
+}
+
+async function readBody(request) {
+  if (request.body !== undefined && request.body !== null) {
+    if (typeof request.body === "string" || Buffer.isBuffer(request.body)) {
+      const raw = Buffer.isBuffer(request.body) ? request.body : Buffer.from(request.body);
+      if (raw.length > maxBodyBytes) throw Object.assign(new Error("Request body too large"), { status: 413 });
+      try { return JSON.parse(raw.toString("utf8")); }
+      catch { throw Object.assign(new Error("Request body must be valid JSON"), { status: 400 }); }
+    }
+    if (typeof request.body === "object") {
+      if (Buffer.byteLength(JSON.stringify(request.body)) > maxBodyBytes) throw Object.assign(new Error("Request body too large"), { status: 413 });
+      return request.body;
+    }
+  }
+  let size = 0;
+  const chunks = [];
+  for await (const chunk of request) {
+    size += chunk.length;
+    if (size > maxBodyBytes) {
+      const error = new Error("Request body too large");
+      error.status = 413;
+      throw error;
+    }
+    chunks.push(chunk);
+  }
+  try { return JSON.parse(Buffer.concat(chunks).toString("utf8")); }
+  catch {
+    const error = new Error("Request body must be valid JSON");
+    error.status = 400;
+    throw error;
+  }
+}
+
+function validMessages(messages) {
+  return Array.isArray(messages) && messages.length > 0 && messages.length <= 100 &&
+    messages.every((item) => item && ["user", "assistant"].includes(item.role) &&
+      (typeof item.content === "string" || Array.isArray(item.content)));
+}
+
+function validModels(models) {
+  return models === undefined || (models && typeof models === "object" && !Array.isArray(models) &&
+    Object.entries(models).every(([provider, model]) =>
+      ["openai", "deepseek", "gemini"].includes(provider) && typeof model === "string" && model.length <= 160));
+}
+
+export async function handleRequest(request, response) {
+  const requestId = randomUUID();
+  const startedAt = Date.now();
+  const url = new URL(request.url, "http://localhost");
+  const pathname = url.pathname.startsWith("/api/") ? url.pathname.slice(4) : (url.pathname === "/api" ? "/" : url.pathname);
+
+  if (request.method === "GET" && (pathname === "/" || pathname === "/app")) {
+    try {
+      const html = await readFile(dashboardPath);
+      response.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "referrer-policy": "no-referrer",
+        "content-security-policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+      });
+      return response.end(html);
+    } catch {
+      return send(response, 503, { error: { code: "dashboard_unavailable", message: "Command Center UI is unavailable" } }, requestId);
+    }
+  }
+
+  if (request.method === "GET" && pathname === "/health") {
+    return send(response, 200, { status: "ok", service: "FM-001", environment: env.NODE_ENV || "development" }, requestId);
+  }
+
+  if (!isAuthorized(request, env.FM001_API_KEY)) {
+    return send(response, 401, { error: { code: "unauthorized", message: "Valid bearer token required" } }, requestId);
+  }
+
+  const clientKey = request.socket?.remoteAddress || request.headers?.["x-forwarded-for"] || "unknown";
+  if (!rateLimit(String(clientKey))) {
+    return send(response, 429, { error: { code: "rate_limited", message: "Request limit exceeded" } }, requestId);
+  }
+
+  if (request.method === "GET" && pathname === "/v1/providers/status") {
+    return send(response, 200, {
+      environment: env.NODE_ENV || "development",
+      providers: {
+        openai: { enabled: enabledProviders.has("openai"), configured: Boolean(env.OPENAI_API_KEY && env.OPENAI_MODEL) },
+        deepseek: { enabled: enabledProviders.has("deepseek"), configured: Boolean(env.DEEPSEEK_API_KEY && env.DEEPSEEK_MODEL) },
+        gemini: { enabled: enabledProviders.has("gemini"), configured: Boolean(env.GEMINI_API_KEY && env.GEMINI_MODEL) }
+      }
+    }, requestId);
+  }
+
+  if (request.method === "GET" && pathname === "/v1/models") {
+    return send(response, 200, {
+      object: "list",
+      data: [...enabledProviders].map((provider) => ({ id: provider, object: "model", owned_by: provider }))
+    }, requestId);
+  }
+
+  if (request.method !== "POST" || !["/v1/chat/completions", "/v1/orchestrate"].includes(pathname)) {
+    return send(response, 404, { error: { code: "not_found", message: "Route not found" } }, requestId);
+  }
+
+  let body;
+  try { body = await readBody(request); }
+  catch (error) {
+    return send(response, error.status || 400, { error: { code: "invalid_request", message: error.message } }, requestId);
+  }
+
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return send(response, 400, { error: { code: "invalid_request", message: "Request body must be a JSON object" } }, requestId);
+  }
+  if (!validMessages(body.messages)) {
+    return send(response, 400, { error: { code: "invalid_messages", message: "messages must contain 1–100 user/assistant messages" } }, requestId);
+  }
+  if (!validModels(body.models) || (body.model !== undefined && (typeof body.model !== "string" || body.model.length > 160))) {
+    return send(response, 400, { error: { code: "invalid_model", message: "model identifiers must be strings of at most 160 characters" } }, requestId);
+  }
+
+  if (pathname === "/v1/orchestrate") {
+    try {
+      const result = await orchestrate({
+        plan: { ...body.plan, models: body.models },
+        messages: body.messages,
+        system: typeof body.system === "string" ? body.system.slice(0, 20_000) : undefined,
+        enabledProviders,
+        call: callProvider,
+        signal: AbortSignal.timeout(timeoutMs)
+      });
+      console.info(JSON.stringify({ event: "orchestration_request", requestId, mode: result.mode, status: result.status, providers: result.results.map((item) => item.provider), durationMs: Date.now() - startedAt }));
+      return send(response, 200, { id: requestId, object: "fm001.orchestration", ...result }, requestId);
+    } catch (error) {
+      const status = error.status || (error.name === "TimeoutError" || error.name === "AbortError" ? 504 : 502);
+      return send(response, status, { error: { code: "orchestration_error", message: error.message }, request_id: requestId }, requestId);
+    }
+  }
+
+  const provider = typeof body.provider === "string" ? body.provider.toLowerCase() : "";
+  if (!enabledProviders.has(provider)) {
+    return send(response, 400, { error: { code: "provider_disabled", message: "Provider is not enabled in this environment" } }, requestId);
+  }
+
+  try {
+    const result = await callProvider({
+      provider, model: body.model, messages: body.messages,
+      system: typeof body.system === "string" ? body.system.slice(0, 20_000) : undefined,
+      signal: AbortSignal.timeout(timeoutMs)
+    });
+    console.info(JSON.stringify({ event: "provider_request", requestId, provider, model: result.model, status: 200, durationMs: Date.now() - startedAt }));
+    return send(response, 200, { id: requestId, object: "chat.completion", provider, model: result.model, choices: [{ index: 0, message: result.message, finish_reason: "stop" }], usage: result.usage }, requestId);
+  } catch (error) {
+    const status = error.name === "TimeoutError" || error.name === "AbortError" ? 504 : (error.status || 502);
+    console.warn(JSON.stringify({ event: "provider_error", requestId, provider, status, durationMs: Date.now() - startedAt, error: error.message }));
+    return send(response, status, { error: { code: "provider_error", message: error.message }, request_id: requestId }, requestId);
+  }
+}
