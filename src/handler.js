@@ -138,6 +138,95 @@ export async function handleRequest(request, response) {
     return send(response, 200, { status: "ok", service: "FM-001", environment: env.NODE_ENV || "development" }, requestId);
   }
 
+  // Password recovery: the browser sends only the one-time user access token.
+  // The project's server-side API key remains on this function and is never returned to the browser.
+  if (request.method === "POST" && pathname === "/auth/recovery/password") {
+    const authorization = request.headers?.authorization || request.headers?.Authorization || "";
+    const tokenMatch = typeof authorization === "string" ? authorization.match(/^Bearer\s+([^\s]+)$/i) : null;
+    const accessToken = tokenMatch?.[1] || "";
+    if (!accessToken || accessToken.length > 8192 || accessToken.split(".").length !== 3) {
+      return send(response, 401, {
+        error: { code: "invalid_recovery_session", message: "Sesi pemulihan tidak valid atau sudah kedaluwarsa. Minta tautan reset baru." }
+      }, requestId);
+    }
+
+    let body;
+    try { body = await readBody(request); }
+    catch {
+      return send(response, 400, {
+        error: { code: "invalid_request", message: "Permintaan pemulihan tidak valid." }
+      }, requestId);
+    }
+
+    const password = typeof body?.password === "string" ? body.password : "";
+    if (password.length < 12 || password.length > 128) {
+      return send(response, 400, {
+        error: { code: "invalid_password", message: "Password baru harus 12–128 karakter." }
+      }, requestId);
+    }
+
+    const base = env.SUPABASE_URL;
+    const apiKey = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY;
+    let authEndpoint;
+    try {
+      const parsedBase = new URL(base);
+      if (parsedBase.protocol !== "https:" && parsedBase.hostname !== "localhost") {
+        throw new Error("HTTPS required");
+      }
+      authEndpoint = new URL("/auth/v1/user", parsedBase).toString();
+    } catch {
+      return send(response, 503, {
+        error: { code: "recovery_not_configured", message: "Layanan pemulihan akun belum dikonfigurasi pada server." }
+      }, requestId);
+    }
+
+    if (!apiKey) {
+      return send(response, 503, {
+        error: { code: "recovery_not_configured", message: "Layanan pemulihan akun belum dikonfigurasi pada server." }
+      }, requestId);
+    }
+
+    try {
+      const authResponse = await fetch(authEndpoint, {
+        method: "PUT",
+        headers: {
+          apikey: apiKey,
+          authorization: `Bearer ${accessToken}`,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ password }),
+        signal: AbortSignal.timeout(timeoutMs)
+      });
+
+      if (!authResponse.ok) {
+        const status = authResponse.status;
+        if (status === 401 || status === 403) {
+          return send(response, 401, {
+            error: { code: "invalid_recovery_session", message: "Tautan pemulihan tidak valid atau sudah kedaluwarsa. Minta tautan reset baru." }
+          }, requestId);
+        }
+        if (status === 429) {
+          return send(response, 429, {
+            error: { code: "recovery_rate_limited", message: "Terlalu banyak percobaan. Tunggu beberapa saat sebelum mencoba lagi." }
+          }, requestId);
+        }
+        return send(response, status === 400 || status === 422 ? 400 : 502, {
+          error: { code: "password_update_failed", message: "Supabase belum dapat memperbarui password. Periksa kebijakan password atau minta tautan baru." }
+        }, requestId);
+      }
+
+      return send(response, 200, {
+        ok: true,
+        message: "Password berhasil diperbarui."
+      }, requestId);
+    } catch (error) {
+      const timedOut = error?.name === "TimeoutError" || error?.name === "AbortError";
+      return send(response, timedOut ? 504 : 502, {
+        error: { code: "recovery_service_unavailable", message: "Layanan pemulihan sedang tidak dapat dihubungi. Coba kembali." }
+      }, requestId);
+    }
+  }
+
   if (!isAuthorized(request, env.FM001_API_KEY)) {
     return send(response, 401, { error: { code: "unauthorized", message: "Valid bearer token required" } }, requestId);
   }
