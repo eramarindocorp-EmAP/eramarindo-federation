@@ -88,4 +88,125 @@ $("run").addEventListener("click",async()=>{
  finally{$("run").disabled=false}
 });
 $("clear").addEventListener("click",()=>{$("output").textContent="";$("meta").textContent="";$("runstatus").textContent=""});
-</script></body></html>
+
+(() => {
+  const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : "";
+  const params = new URLSearchParams(hash);
+  const recoveryType = params.get("type");
+  let recoveryAccessToken = params.get("access_token");
+
+  if (recoveryType !== "recovery" || !recoveryAccessToken) return;
+
+  // Remove the one-time bearer token from the address bar immediately.
+  window.history.replaceState(window.history.state, document.title, window.location.pathname + window.location.search);
+
+  const overlay = document.createElement("div");
+  overlay.id = "eramarindo-password-recovery";
+  overlay.innerHTML = `
+    <style>
+      #eramarindo-password-recovery{position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:20px;background:rgba(3,8,14,.94);backdrop-filter:blur(10px);font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#f2f4f7}
+      #eramarindo-password-recovery .recovery-card{width:min(100%,480px);padding:30px;border:1px solid #344353;border-radius:20px;background:linear-gradient(145deg,#14202c,#0d141d);box-shadow:0 24px 80px rgba(0,0,0,.5)}
+      #eramarindo-password-recovery .recovery-eyebrow{color:#c4ad7a;font-size:10px;letter-spacing:.2em;text-transform:uppercase}
+      #eramarindo-password-recovery h2{margin:12px 0 8px;font-size:26px;letter-spacing:-.03em}
+      #eramarindo-password-recovery p{color:#aeb9c6;font-size:13px;line-height:1.6}
+      #eramarindo-password-recovery label{display:block;margin:16px 0 7px;color:#cbd3dc;font-size:12px}
+      #eramarindo-password-recovery input{width:100%;box-sizing:border-box;padding:12px;border:1px solid #344353;border-radius:9px;background:#080e15;color:#f2f4f7;font:inherit;font-size:14px}
+      #eramarindo-password-recovery input:focus{outline:2px solid #b9a06b;outline-offset:1px}
+      #eramarindo-password-recovery button{margin-top:18px;width:100%;padding:13px 16px;border:0;border-radius:9px;background:#c4ad7a;color:#10151c;font-weight:750;cursor:pointer}
+      #eramarindo-password-recovery button:disabled{opacity:.55;cursor:wait}
+      #eramarindo-password-recovery .recovery-status{min-height:22px;margin-top:12px;font-size:12px}
+      #eramarindo-password-recovery .recovery-status.error{color:#ff9e9e}
+      #eramarindo-password-recovery .recovery-status.success{color:#8ed6b3}
+      #eramarindo-password-recovery .recovery-foot{margin-top:20px;padding-top:14px;border-top:1px solid #293644;color:#718094;font-size:10px;letter-spacing:.13em;text-align:center}
+      #eramarindo-password-recovery .recovery-success{display:none}
+    </style>
+    <section class="recovery-card" role="dialog" aria-modal="true" aria-labelledby="recovery-title">
+      <div class="recovery-eyebrow">Eramarindo · Secure Account Recovery</div>
+      <h2 id="recovery-title">Buat password baru</h2>
+      <p>Tautan pemulihan Anda telah diterima. Buat password baru minimal 12 karakter dan masukkan kembali untuk konfirmasi.</p>
+      <form id="recovery-form" autocomplete="on">
+        <label for="recovery-password">Password baru</label>
+        <input id="recovery-password" type="password" name="new-password" autocomplete="new-password" minlength="12" maxlength="128" required>
+        <label for="recovery-confirm">Konfirmasi password baru</label>
+        <input id="recovery-confirm" type="password" name="confirm-password" autocomplete="new-password" minlength="12" maxlength="128" required>
+        <button id="recovery-submit" type="submit">Simpan password baru</button>
+        <div id="recovery-status" class="recovery-status" role="status" aria-live="polite"></div>
+      </form>
+      <div id="recovery-success" class="recovery-success">
+        <p class="recovery-status success">Password berhasil diperbarui. Anda dapat kembali ke halaman Command Center.</p>
+        <button id="recovery-return" type="button">Kembali ke Command Center</button>
+      </div>
+      <div class="recovery-foot">ONE GATE — ONE STANDARD — ONE COMMAND</div>
+    </section>`;
+
+  document.body.appendChild(overlay);
+
+  const form = overlay.querySelector("#recovery-form");
+  const passwordInput = overlay.querySelector("#recovery-password");
+  const confirmInput = overlay.querySelector("#recovery-confirm");
+  const submitButton = overlay.querySelector("#recovery-submit");
+  const status = overlay.querySelector("#recovery-status");
+  const successPanel = overlay.querySelector("#recovery-success");
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const password = passwordInput.value;
+    const confirmation = confirmInput.value;
+    status.className = "recovery-status";
+    status.textContent = "";
+
+    if (password.length < 12 || password.length > 128) {
+      status.classList.add("error");
+      status.textContent = "Gunakan password 12–128 karakter.";
+      return;
+    }
+    if (password !== confirmation) {
+      status.classList.add("error");
+      status.textContent = "Konfirmasi password tidak sama.";
+      return;
+    }
+    if (!recoveryAccessToken) {
+      status.classList.add("error");
+      status.textContent = "Sesi pemulihan sudah tidak tersedia. Minta tautan reset baru.";
+      return;
+    }
+
+    submitButton.disabled = true;
+    submitButton.textContent = "Memperbarui password…";
+    try {
+      const response = await fetch("/api/auth/recovery/password", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: "Bearer " + recoveryAccessToken
+        },
+        body: JSON.stringify({ password })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result.error?.message || "Password belum dapat diperbarui.");
+      }
+
+      recoveryAccessToken = "";
+      passwordInput.value = "";
+      confirmInput.value = "";
+      form.style.display = "none";
+      successPanel.style.display = "block";
+      overlay.querySelector("#recovery-title").textContent = "Password berhasil diperbarui";
+      overlay.querySelector(".recovery-card > p").textContent = "Pemulihan akun selesai. Password baru sudah tersimpan.";
+    } catch (error) {
+      status.classList.add("error");
+      status.textContent = error instanceof Error ? error.message : "Terjadi kesalahan. Minta tautan reset baru bila diperlukan.";
+      submitButton.disabled = false;
+      submitButton.textContent = "Simpan password baru";
+    }
+  });
+
+  overlay.querySelector("#recovery-return").addEventListener("click", () => {
+    window.location.replace(window.location.origin + "/");
+  });
+})();
+
+</script>
+
+</body></html>
