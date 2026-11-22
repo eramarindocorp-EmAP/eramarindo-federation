@@ -88,8 +88,7 @@ $("run").addEventListener("click",async()=>{
  finally{$("run").disabled=false}
 });
 $("clear").addEventListener("click",()=>{$("output").textContent="";$("meta").textContent="";$("runstatus").textContent=""});
-</script>
-<script>
+
 (() => {
   const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : "";
   const params = new URLSearchParams(hash);
@@ -207,6 +206,7 @@ $("clear").addEventListener("click",()=>{$("output").textContent="";$("meta").te
     window.location.replace(window.location.origin + "/");
   });
 })();
+
 </script>
 
 </body></html>
