@@ -12,6 +12,8 @@ test("Command Center page includes the expected federation controls", async () =
   assert.match(html, /DeepSeek/);
   assert.match(html, /Gemini/);
   const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
-  assert.equal(scripts.length, 1, "expected one inline application script");
-  assert.doesNotThrow(() => new vm.Script(scripts[0][1]), "dashboard JavaScript must parse");
+  assert.equal(scripts.length, 2, "expected the dashboard and recovery scripts");
+  for (const [, source] of scripts) {
+    assert.doesNotThrow(() => new vm.Script(source), "dashboard and recovery JavaScript must parse");
+  }
 });
