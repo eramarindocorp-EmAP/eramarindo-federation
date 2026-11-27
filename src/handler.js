@@ -244,7 +244,9 @@ export async function handleRequest(request, response) {
       providers: {
         openai: { enabled: enabledProviders.has("openai"), configured: Boolean(env.OPENAI_API_KEY && env.OPENAI_MODEL) },
         deepseek: { enabled: enabledProviders.has("deepseek"), configured: Boolean(env.DEEPSEEK_API_KEY && env.DEEPSEEK_MODEL) },
-        gemini: { enabled: enabledProviders.has("gemini"), configured: Boolean(env.GEMINI_API_KEY && env.GEMINI_MODEL) },\n        perplexity: { enabled: enabledProviders.has("perplexity"), configured: Boolean(env.PERPLEXITY_API_KEY && env.PERPLEXITY_MODEL) },\n        anthropic: { enabled: enabledProviders.has("anthropic"), configured: Boolean(env.ANTHROPIC_API_KEY && env.ANTHROPIC_MODEL) }
+        gemini: { enabled: enabledProviders.has("gemini"), configured: Boolean(env.GEMINI_API_KEY && env.GEMINI_MODEL) },
+        perplexity: { enabled: enabledProviders.has("perplexity"), configured: Boolean(env.PERPLEXITY_API_KEY && env.PERPLEXITY_MODEL) },
+        anthropic: { enabled: enabledProviders.has("anthropic"), configured: Boolean(env.ANTHROPIC_API_KEY && env.ANTHROPIC_MODEL) }
       }
     }, requestId);
   }
