@@ -66,7 +66,7 @@ function validMessages(messages) {
 function validModels(models) {
   return models === undefined || (models && typeof models === "object" && !Array.isArray(models) &&
     Object.entries(models).every(([provider, model]) =>
-      ["openai", "deepseek", "gemini"].includes(provider) && typeof model === "string" && model.length <= 160));
+      ["openai", "deepseek", "gemini", "perplexity", "anthropic"].includes(provider) && typeof model === "string" && model.length <= 160));
 }
 
 
@@ -244,7 +244,7 @@ export async function handleRequest(request, response) {
       providers: {
         openai: { enabled: enabledProviders.has("openai"), configured: Boolean(env.OPENAI_API_KEY && env.OPENAI_MODEL) },
         deepseek: { enabled: enabledProviders.has("deepseek"), configured: Boolean(env.DEEPSEEK_API_KEY && env.DEEPSEEK_MODEL) },
-        gemini: { enabled: enabledProviders.has("gemini"), configured: Boolean(env.GEMINI_API_KEY && env.GEMINI_MODEL) }
+        gemini: { enabled: enabledProviders.has("gemini"), configured: Boolean(env.GEMINI_API_KEY && env.GEMINI_MODEL) },\n        perplexity: { enabled: enabledProviders.has("perplexity"), configured: Boolean(env.PERPLEXITY_API_KEY && env.PERPLEXITY_MODEL) },\n        anthropic: { enabled: enabledProviders.has("anthropic"), configured: Boolean(env.ANTHROPIC_API_KEY && env.ANTHROPIC_MODEL) }
       }
     }, requestId);
   }
