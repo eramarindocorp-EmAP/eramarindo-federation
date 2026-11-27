@@ -1,4 +1,4 @@
-const SUPPORTED = new Set(["openai", "deepseek", "gemini"]);
+const SUPPORTED = new Set(["openai", "deepseek", "gemini", "perplexity", "anthropic"]);
 
 function normalize(text) {
   return String(text ?? "").trim().toLowerCase().replace(/\\s+/g, " ");
@@ -14,9 +14,9 @@ function validatePlan(plan, enabledProviders) {
     throw Object.assign(new Error("mode must be single, parallel, consensus, or fallback"), { status: 400 });
   }
   const requested = mode === "single" ? [plan.provider] : plan.providers;
-  if (!Array.isArray(requested) || requested.length < 1 || requested.length > 3 ||
+  if (!Array.isArray(requested) || requested.length < 1 || requested.length > 5 ||
       requested.some((provider) => typeof provider !== "string" || !SUPPORTED.has(provider.toLowerCase()))) {
-    throw Object.assign(new Error("provider selection must contain 1–3 supported providers"), { status: 400 });
+    throw Object.assign(new Error("provider selection must contain 1–5 supported providers"), { status: 400 });
   }
   const providers = [...new Set(requested.map((provider) => provider.toLowerCase()))];
   if (providers.length !== requested.length) {

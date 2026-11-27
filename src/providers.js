@@ -1,6 +1,7 @@
 const OPENAI_COMPATIBLE = {
   openai: { endpoint: "https://api.openai.com/v1/chat/completions", key: "OPENAI_API_KEY", model: "OPENAI_MODEL" },
-  deepseek: { endpoint: "https://api.deepseek.com/chat/completions", key: "DEEPSEEK_API_KEY", model: "DEEPSEEK_MODEL" }
+  deepseek: { endpoint: "https://api.deepseek.com/chat/completions", key: "DEEPSEEK_API_KEY", model: "DEEPSEEK_MODEL" },
+  perplexity: { endpoint: "https://api.perplexity.ai/chat/completions", key: "PERPLEXITY_API_KEY", model: "PERPLEXITY_MODEL" }
 };
 
 const PROVIDER_ERROR_HINTS = {
@@ -30,9 +31,8 @@ async function readJson(response, provider) {
   const raw = await response.text();
   let data = {};
   if (raw) {
-    try {
-      data = JSON.parse(raw);
-    } catch {
+    try { data = JSON.parse(raw); }
+    catch {
       if (response.ok) throw new Error(`${provider} provider returned an invalid JSON response`);
     }
   }
@@ -40,52 +40,89 @@ async function readJson(response, provider) {
   return data;
 }
 
+function openAiCompatibleMessages(messages, system) {
+  return [...(system ? [{ role: "system", content: system }] : []), ...messages];
+}
+
+async function callOpenAiCompatible({ provider, model, messages, system, signal, env }) {
+  const config = OPENAI_COMPATIBLE[provider];
+  const apiKey = env[config.key];
+  const selectedModel = model || env[config.model];
+  if (!apiKey || !selectedModel) throw new Error(`${provider} is not configured`);
+  const response = await fetch(config.endpoint, {
+    method: "POST",
+    headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+    body: JSON.stringify({ model: selectedModel, messages: openAiCompatibleMessages(messages, system) }),
+    signal
+  });
+  const data = await readJson(response, provider);
+  return {
+    provider, model: data.model || selectedModel,
+    message: data.choices?.[0]?.message ?? null,
+    usage: data.usage ?? null
+  };
+}
+
+async function callGemini({ model, messages, system, signal, env }) {
+  const apiKey = env.GEMINI_API_KEY;
+  const selectedModel = model || env.GEMINI_MODEL;
+  if (!apiKey || !selectedModel) throw new Error("gemini is not configured");
+  const contents = messages.map((item) => ({
+    role: item.role === "assistant" ? "model" : "user",
+    parts: [{ text: typeof item.content === "string" ? item.content : JSON.stringify(item.content) }]
+  }));
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(selectedModel)}:generateContent`;
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "x-goog-api-key": apiKey, "content-type": "application/json" },
+    body: JSON.stringify({
+      ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
+      contents
+    }),
+    signal
+  });
+  const data = await readJson(response, "gemini");
+  const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
+  return { provider: "gemini", model: selectedModel, message: { role: "assistant", content: text }, usage: data.usageMetadata ?? null };
+}
+
+async function callAnthropic({ model, messages, system, signal, env }) {
+  const apiKey = env.ANTHROPIC_API_KEY;
+  const selectedModel = model || env.ANTHROPIC_MODEL;
+  if (!apiKey || !selectedModel) throw new Error("anthropic is not configured");
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      model: selectedModel,
+      max_tokens: 4096,
+      ...(system ? { system } : {}),
+      messages: messages.map((item) => ({
+        role: item.role,
+        content: typeof item.content === "string" ? item.content : JSON.stringify(item.content)
+      }))
+    }),
+    signal
+  });
+  const data = await readJson(response, "anthropic");
+  const content = (data.content || []).filter((item) => item.type === "text").map((item) => item.text).join("\n");
+  return {
+    provider: "anthropic",
+    model: data.model || selectedModel,
+    message: { role: "assistant", content },
+    usage: data.usage ?? null
+  };
+}
+
 export async function callProvider({ provider, model, messages, system, signal, env = process.env }) {
   if (OPENAI_COMPATIBLE[provider]) {
-    const config = OPENAI_COMPATIBLE[provider];
-    const apiKey = env[config.key];
-    const selectedModel = model || env[config.model];
-    if (!apiKey || !selectedModel) throw new Error(`${provider} is not configured`);
-    const response = await fetch(config.endpoint, {
-      method: "POST",
-      headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ model: selectedModel, messages: [...(system ? [{ role: "system", content: system }] : []), ...messages] }),
-      signal
-    });
-    const data = await readJson(response, provider);
-    return {
-      provider, model: data.model || selectedModel,
-      message: data.choices?.[0]?.message ?? null,
-      usage: data.usage ?? null
-    };
+    return callOpenAiCompatible({ provider, model, messages, system, signal, env });
   }
-
-  if (provider === "gemini") {
-    const apiKey = env.GEMINI_API_KEY;
-    const selectedModel = model || env.GEMINI_MODEL;
-    if (!apiKey || !selectedModel) throw new Error("gemini is not configured");
-    const contents = messages.map((item) => ({
-      role: item.role === "assistant" ? "model" : "user",
-      parts: [{ text: typeof item.content === "string" ? item.content : JSON.stringify(item.content) }]
-    }));
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(selectedModel)}:generateContent`;
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "x-goog-api-key": apiKey, "content-type": "application/json" },
-      body: JSON.stringify({
-        ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
-        contents
-      }),
-      signal
-    });
-    const data = await readJson(response, provider);
-    const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
-    return {
-      provider, model: selectedModel,
-      message: { role: "assistant", content: text },
-      usage: data.usageMetadata ?? null
-    };
-  }
-
+  if (provider === "gemini") return callGemini({ model, messages, system, signal, env });
+  if (provider === "anthropic") return callAnthropic({ model, messages, system, signal, env });
   throw new Error("Provider is not supported");
 }
