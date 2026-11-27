@@ -1,0 +1,105 @@
+{
+  "federation": "FERDYNAND MARTHING AI FEDERATION",
+  "version": "1.0.0",
+  "environment": "staging",
+  "authority": {
+    "principal": "Ferdynand Marthing",
+    "coordinator": "Ferguson Albrecht Sinclair",
+    "coordinator_id": "FM-AIF-001"
+  },
+  "policy": {
+    "human_approval_required_for": [
+      "external_actions",
+      "financial_actions",
+      "legal_commitments",
+      "production_changes",
+      "credential_changes",
+      "data_exports",
+      "tool_execution"
+    ],
+    "provider_calls_enabled_by_default": false
+  },
+  "providers": [
+    {
+      "id": "openai",
+      "name": "OpenAI / ChatGPT",
+      "identities": [
+        {
+          "id": "FM-AIF-001",
+          "name": "Ferguson Albrecht Sinclair",
+          "role": "Chief AI Coordinator"
+        },
+        {
+          "id": "FM-AIF-002",
+          "name": "Gabriel Nathza",
+          "role": "Strategic Intelligence"
+        },
+        {
+          "id": "FM-AIF-003",
+          "name": "Abigail Klein",
+          "role": "Knowledge & Research"
+        },
+        {
+          "id": "FM-AIF-004",
+          "name": "Charles Alexander Marthing",
+          "role": "Corporate Integrity"
+        }
+      ]
+    },
+    {
+      "id": "gemini",
+      "name": "Google Gemini",
+      "identities": [
+        {
+          "id": "FM-AIF-005",
+          "name": "Oliver Manuel",
+          "role": "Executive Intelligence"
+        },
+        {
+          "id": "FM-AIF-006",
+          "name": "Abigail Klein",
+          "role": "Research & Productivity"
+        }
+      ]
+    },
+    {
+      "id": "deepseek",
+      "name": "DeepSeek AI",
+      "identities": [
+        {
+          "id": "FM-AIF-007",
+          "name": "Josua Steel",
+          "role": "Technology & Engineering"
+        }
+      ]
+    },
+    {
+      "id": "perplexity",
+      "name": "Perplexity AI",
+      "identities": [
+        {
+          "id": "FM-AIF-008",
+          "name": "Kalvin Saver",
+          "role": "External Research & Verification"
+        }
+      ]
+    },
+    {
+      "id": "anthropic",
+      "name": "Anthropic / Claude",
+      "identities": [
+        {
+          "id": "FM-AIF-009",
+          "name": "Joseph Nathaza",
+          "role": "Documentation & Analytical Review"
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "Identity names are user-designated working personas, not provider-verified identities.",
+    "ChatGPT and Gemini personas are separate governance identities, not separate provider API accounts.",
+    "Provider API access requires separate API credentials, model selection, billing ownership and data-sharing approval.",
+    "No email addresses, passwords, API keys or other credentials belong in this public repository."
+  ]
+}
