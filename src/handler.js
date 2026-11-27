@@ -240,7 +240,7 @@ export async function handleRequest(request, response) {
 
   if (request.method === "GET" && pathname === "/v1/providers/status") {
     return send(response, 200, {
-      environment: env.NODE_ENV || "development",
+      environment: env.FM001_ENVIRONMENT || env.NODE_ENV || "development",
       providers: {
         openai: { enabled: enabledProviders.has("openai"), configured: Boolean(env.OPENAI_API_KEY && env.OPENAI_MODEL) },
         deepseek: { enabled: enabledProviders.has("deepseek"), configured: Boolean(env.DEEPSEEK_API_KEY && env.DEEPSEEK_MODEL) },
@@ -307,7 +307,7 @@ export async function handleRequest(request, response) {
             priority,
             status: "pending_approval",
             requires_approval: true,
-            environment: env.NODE_ENV === "production" ? "production" : "development"
+            environment: env.FM001_ENVIRONMENT || (env.VERCEL_ENV === "production" ? "production" : "staging")
           })
         });
         return send(response, 202, { status: "pending_approval", message: "Task registered. No external action has been executed; human approval is required.", task: Array.isArray(task) ? task[0] : task }, requestId);
