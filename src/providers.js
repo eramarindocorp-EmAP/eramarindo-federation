@@ -109,7 +109,7 @@ async function callAnthropic({ model, messages, system, signal, env }) {
     signal
   });
   const data = await readJson(response, "anthropic");
-  const content = (data.content || []).filter((item) => item.type === "text").map((item) => item.text).join("\\n");
+  const content = (data.content || []).filter((item) => item.type === "text").map((item) => item.text).join("\n");
   return {
     provider: "anthropic",
     model: data.model || selectedModel,
