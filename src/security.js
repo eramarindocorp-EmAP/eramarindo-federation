@@ -15,7 +15,7 @@ export function isAuthorized(request, configuredKey) {
 }
 
 export function parseEnabledProviders(value = "") {
-  const allowed = new Set(["openai", "deepseek", "gemini"]);
+  const allowed = new Set(["openai", "deepseek", "gemini", "perplexity", "anthropic"]);
   return new Set(value.split(",").map((item) => item.trim().toLowerCase()).filter((item) => allowed.has(item)));
 }
 
